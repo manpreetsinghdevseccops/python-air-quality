@@ -1,29 +1,49 @@
-name: OWASP Dependency-Check
+name: CI/CD Pipeline
 on:
   push:
     branches: [main]
 
 jobs:
+  sonarqube-scan:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: pip
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v6
+        with:
+          projectBaseDir: .
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
   owasp-dependency-check:
+    name: OWASP Dependency-Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Set up Java (OWASP Dependency)
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
-      
       - name: Set up Python 3.9
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
           cache: 'pip'
-      
       - name: Install Dependencies
         run: pip install -r requirements.txt
-      
       - name: Run OWASP Dependency-Check
         uses: dependency-check/Dependency-Check_Action@main
         env:
@@ -33,7 +53,6 @@ jobs:
           scanPath: .
           format: HTML
           outDir: reports
-      
       - name: Upload Dependency-Check Report
         uses: actions/upload-artifact@v4
         with:
