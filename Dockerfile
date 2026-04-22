@@ -1,64 +1,46 @@
-# Use Python 3.10 slim - compatible with older pandas versions
-FROM python:3.10-slim
+# Production-ready Dockerfile for Python Air Quality ML Application
+FROM python:3.9-slim
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies required for:
-# - Building Python packages (gcc, g++, etc.)
-# - AWS CLI runtime
-# - Shell script execution
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    g++ \
-    gfortran \
-    libopenblas-dev \
-    liblapack-dev \
-    pkg-config \
-    curl \
-    unzip \
-    bash \
-    && rm -rf /var/lib/apt/lists/*
+# Install system dependencies and AWS CLI in a single layer
+RUN apt-get update && \
+    apt-get install --no-install-recommends -y --no-install-recommends \
+        curl \
+        unzip \
+        ca-certificates && \
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws && \
+    apt-get remove -y curl unzip && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install AWS CLI v2 (required by startup.sh)
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
-    && unzip awscliv2.zip \
-    && ./aws/install \
-    && rm -rf aws awscliv2.zip
+# Create non-root user
+RUN groupadd -r appuser && \
+    useradd -r -g appuser -u 1001 appuser
 
-# Upgrade pip and install setuptools explicitly
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Copy requirements first for better layer caching
+COPY --chown=appuser:appuser requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY main.py .
-COPY src/ ./src/
-COPY data/ ./data/
-COPY models/ ./models/
+# Copy application files and directories with proper ownership
+COPY --chown=appuser:appuser main.py .
+COPY --chown=appuser:appuser startup.sh .
+COPY --chown=appuser:appuser src ./src
+COPY --chown=appuser:appuser data ./data
+COPY --chown=appuser:appuser models ./models
 
-# Copy and make startup script executable
-COPY startup.sh /startup.sh
-RUN chmod +x /startup.sh
-
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-
-# Set ownership of application directory and ensure runtime file creation permissions
-RUN chown -R appuser:appuser /app && \
-    mkdir -p /app/logs /app/temp && \
-    chown -R appuser:appuser /app/logs /app/temp
+# Make startup script executable
+RUN chmod +x startup.sh
 
 # Switch to non-root user
 USER appuser
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
-
-# Use startup script as entrypoint
-ENTRYPOINT ["sh","/startup.sh"]
+# Set entrypoint
+ENTRYPOINT ["bash", "startup.sh"]
