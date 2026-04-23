@@ -4,30 +4,32 @@ FROM python:3.9-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies required for AWS CLI and runtime
+# Install system dependencies and AWS CLI in a single layer
 RUN apt-get update && \
     apt-get install --no-install-recommends -y --no-install-recommends \
     curl \
     unzip \
-    ca-certificates \
-    bash \
-    && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
-    && unzip awscliv2.zip \
-    && ./aws/install \
-    && rm -rf awscliv2.zip aws \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    ca-certificates && \
+    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws && \
+    apt-get remove -y curl unzip && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+RUN groupadd -r appuser && \
+    useradd -r -g appuser -u 1001 appuser
 
-# Copy requirements first for better layer caching
+# Copy requirements first for better caching
 COPY --chown=appuser:appuser requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files and directories
+# Copy application files and directories with proper ownership
 COPY --chown=appuser:appuser main.py .
 COPY --chown=appuser:appuser startup.sh .
 COPY --chown=appuser:appuser src ./src
