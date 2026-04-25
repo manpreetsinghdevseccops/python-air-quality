@@ -25,7 +25,7 @@ deploymentPipeline(
     buildVersion: '3.9',
 
     // ── Feature flags ─────────────────────────────────────────────────
-    enableBuild    : true,
+    enableBuild    : false,
     enableDeploy   : false,
     enableUnitTests: false,
     enableOwasp    : true,
